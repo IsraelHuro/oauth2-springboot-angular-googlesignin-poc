@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  db:
+    image: mysql:8
+    container_name: aghairsalon-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: aghairsalon
+      MYSQL_USER: aghairsalon
+      MYSQL_PASSWORD: aghairsalon
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    volumes:
+      - db-data:/var/lib/mysql
+
+  authorization-server:
+    build: ./authorization-server
+    container_name: authorization-server
+    depends_on:
+      - db
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/aghairsalon
+      SPRING_DATASOURCE_USERNAME: aghairsalon
+      SPRING_DATASOURCE_PASSWORD: aghairsalon
+    ports:
+      - "9000:9000"
+
+  resource-server:
+    build: ./resource-server
+    container_name: resource-server
+    depends_on:
+      - authorization-server
+      - db
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/aghairsalon
+      SPRING_DATASOURCE_USERNAME: aghairsalon
+      SPRING_DATASOURCE_PASSWORD: aghairsalon
+      AUTH_SERVER_URL: http://authorization-server:9000
+    ports:
+      - "8081:8081"
+
+  frontend:
+    build: ./ag-prueba-front
+    container_name: aghairsalon-front
+    depends_on:
+      - resource-server
+    ports:
+      - "4200:80"
+    environment:
+      API_URL: http://resource-server:8081
+
+volumes:
+  db-data:

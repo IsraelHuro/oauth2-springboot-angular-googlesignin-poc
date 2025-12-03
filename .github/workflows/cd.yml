@@ -1,0 +1,62 @@
+name: CD
+
+on:
+  push:
+    branches: [ develop ]
+  pull_request:
+    branches: [ develop ]
+
+jobs:
+  build-authorization-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Build authorization-server (skip tests)
+        run: |
+          cd authorization-server
+          chmod +x mvnw
+          ./mvnw -B clean package -DskipTests
+
+  build-resource-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Build resource-server (skip tests)
+        run: |
+          cd resource-server
+          chmod +x mvnw
+          ./mvnw -B clean package -DskipTests
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: |
+          cd ag-prueba-front
+          npm install
+
+      - name: Build frontend
+        run: |
+          cd ag-prueba-front
+          npm run build
