@@ -7,8 +7,8 @@ on:
     branches: [ "**" ]
 
 jobs:
-  backend-authorization-lint:
-    name: authorization-server (checkstyle)
+  backend-authorization-quality:
+    name: authorization-server (checkstyle + tests + coverage)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -26,11 +26,17 @@ jobs:
           sed -i 's/\r$//' mvnw
           chmod +x mvnw
 
-      - name: Checkstyle (validate)
-        run: ./mvnw -DskipTests validate
+      - name: Test + Coverage (JaCoCo) + Checkstyle
+        run: ./mvnw test
 
-  backend-resource-lint:
-    name: resource-server (checkstyle)
+      - name: Upload JaCoCo report (authorization-server)
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-authorization-server
+          path: authorization-server/target/site/jacoco/
+
+  backend-resource-quality:
+    name: resource-server (checkstyle + tests + coverage)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -48,8 +54,14 @@ jobs:
           sed -i 's/\r$//' mvnw
           chmod +x mvnw
 
-      - name: Checkstyle (validate)
-        run: ./mvnw -DskipTests validate
+      - name: Test + Coverage (JaCoCo) + Checkstyle
+        run: ./mvnw test
+
+      - name: Upload JaCoCo report (resource-server)
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-resource-server
+          path: resource-server/target/site/jacoco/
 
   frontend-lint:
     name: ag-prueba-front (eslint)
