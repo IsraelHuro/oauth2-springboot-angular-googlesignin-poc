@@ -8,7 +8,7 @@ on:
 
 jobs:
   backend-authorization:
-    name: authorization-server (checkstyle + tests)
+    name: authorization-server (tests)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -34,12 +34,12 @@ jobs:
           sed -i 's/\r$//' mvnw
           chmod +x mvnw
 
-      - name: Maven test (retry + full errors)
+      - name: Maven test (retry)
         run: |
           set -e
           for i in 1 2 3; do
             echo "Attempt $i/3"
-            ./mvnw -B -ntp -e -DtrimStackTrace=false test && break
+            ./mvnw -B -ntp test && break
             if [ "$i" -eq 3 ]; then
               echo "Maven failed after 3 attempts"
               exit 1
@@ -49,7 +49,7 @@ jobs:
           done
 
   backend-resource:
-    name: resource-server (checkstyle + tests)
+    name: resource-server (tests + show surefire error)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -75,31 +75,38 @@ jobs:
           sed -i 's/\r$//' mvnw
           chmod +x mvnw
 
-      - name: Maven test (retry + full errors)
+      - name: Maven test (retry + dump surefire on failure)
         run: |
-          set -e
+          set +e
+          exit_code=1
+
           for i in 1 2 3; do
             echo "Attempt $i/3"
-            ./mvnw -B -ntp -e -DtrimStackTrace=false test && break
-            if [ "$i" -eq 3 ]; then
-              echo "Maven failed after 3 attempts"
-              exit 1
+            ./mvnw -B -ntp -e -DtrimStackTrace=false test
+            exit_code=$?
+
+            if [ "$exit_code" -eq 0 ]; then
+              echo "Maven test OK"
+              exit 0
             fi
-            echo "Retrying in 15s..."
-            sleep 15
+
+            echo "Attempt $i failed with exit code $exit_code"
+            if [ "$i" -lt 3 ]; then
+              echo "Retrying in 15s..."
+              sleep 15
+            fi
           done
 
-      - name: Dump Surefire reports (on failure)
-        if: failure()
-        run: |
           echo "==== SUREFIRE REPORTS (resource-server) ===="
           ls -la target/surefire-reports || true
           for f in target/surefire-reports/*.txt target/surefire-reports/*.dumpstream target/surefire-reports/*.xml; do
             if [ -f "$f" ]; then
               echo "---- $f ----"
-              sed -n '1,200p' "$f"
+              sed -n '1,220p' "$f"
             fi
           done
+
+          exit $exit_code
 
   frontend-lint:
     name: ag-prueba-front (eslint)
@@ -116,8 +123,9 @@ jobs:
           cache: "npm"
           cache-dependency-path: ag-prueba-front/package-lock.json
 
-      - name: Install deps
-        run: npm ci --no-audit --no-fund
+      - name: Install deps (ci if possible, fallback to install)
+        run: |
+          npm ci --no-audit --no-fund || npm install --no-audit --no-fund
 
       - name: Lint
         run: npm run lint
