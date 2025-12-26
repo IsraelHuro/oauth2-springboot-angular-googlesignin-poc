@@ -38,6 +38,13 @@
 			<scope>test</scope>
 		</dependency>
 
+		<!-- OKR3 (KR 3.3): DB en memoria para tests (evita MySQL en CI) -->
+		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
+			<scope>test</scope>
+		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-oauth2-authorization-server</artifactId>
@@ -80,11 +87,6 @@
 						<groupId>com.puppycrawl.tools</groupId>
 						<artifactId>checkstyle</artifactId>
 						<version>10.17.0</version>
-					</dependency>
-					<dependency>
-						<groupId>com.h2database</groupId>
-						<artifactId>h2</artifactId>
-						<scope>test</scope>
 					</dependency>
 				</dependencies>
 
@@ -137,7 +139,7 @@
 								<rule>
 									<element>BUNDLE</element>
 									<limits>
-										<!-- POC: c = 10% -->
+										<!-- POC: c = 1% -->
 										<limit>
 											<counter>INSTRUCTION</counter>
 											<value>COVEREDRATIO</value>
