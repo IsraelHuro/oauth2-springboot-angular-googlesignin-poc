@@ -1,0 +1,54 @@
+name: quality
+
+on:
+  pull_request:
+    branches: [ "develop" ]
+  push:
+    branches: [ "develop" ]
+
+jobs:
+  backend-authorization-lint:
+    name: authorization-server (checkstyle)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: authorization-server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+      - name: Checkstyle (validate)
+        run: ./mvnw -DskipTests validate
+
+  backend-resource-lint:
+    name: resource-server (checkstyle)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: resource-server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+      - name: Checkstyle (validate)
+        run: ./mvnw -DskipTests validate
+
+  frontend-lint:
+    name: ag-prueba-front (eslint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ag-prueba-front
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install deps
+        run: npm ci
+      - name: Lint
+        run: npm run lint
