@@ -108,6 +108,29 @@
 				</executions>
 			</plugin>
 
+			<!-- OKR3 (KR 3.2): Static code analysis (SpotBugs) -->
+			<plugin>
+				<groupId>com.github.spotbugs</groupId>
+				<artifactId>spotbugs-maven-plugin</artifactId>
+				<version>4.8.6.0</version>
+				<configuration>
+					<effort>Max</effort>
+					<threshold>Low</threshold>
+					<failOnError>false</failOnError>
+					<xmlOutput>true</xmlOutput>
+					<htmlOutput>true</htmlOutput>
+				</configuration>
+				<executions>
+					<execution>
+						<id>spotbugs-verify</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>spotbugs</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+
 			<!-- OKR3 (KR 3.3): Test coverage (JaCoCo) -->
 			<plugin>
 				<groupId>org.jacoco</groupId>

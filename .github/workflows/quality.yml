@@ -8,7 +8,7 @@ on:
 
 jobs:
   backend-authorization-quality:
-    name: authorization-server (checkstyle + tests + jacoco)
+    name: authorization-server (checkstyle + tests + jacoco + spotbugs)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -27,8 +27,8 @@ jobs:
           sed -i 's/\r$//' mvnw
           chmod +x mvnw
 
-      - name: Run tests (includes validate -> checkstyle)
-        run: ./mvnw -B test
+      - name: Run verify (validate->checkstyle, test, jacoco, spotbugs if configured)
+        run: ./mvnw -B verify
 
       - name: Upload backend reports
         if: always()
@@ -38,10 +38,13 @@ jobs:
           path: |
             authorization-server/target/surefire-reports/**
             authorization-server/target/site/jacoco/**
+            authorization-server/target/spotbugs*.xml
+            authorization-server/target/spotbugs*.html
+            authorization-server/target/site/spotbugs/**
           if-no-files-found: ignore
 
   backend-resource-quality:
-    name: resource-server (checkstyle + tests + jacoco)
+    name: resource-server (checkstyle + tests + jacoco + spotbugs)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -60,8 +63,8 @@ jobs:
           sed -i 's/\r$//' mvnw
           chmod +x mvnw
 
-      - name: Run tests (includes validate -> checkstyle)
-        run: ./mvnw -B test
+      - name: Run verify (validate->checkstyle, test, jacoco, spotbugs if configured)
+        run: ./mvnw -B verify
 
       - name: Upload backend reports
         if: always()
@@ -71,6 +74,9 @@ jobs:
           path: |
             resource-server/target/surefire-reports/**
             resource-server/target/site/jacoco/**
+            resource-server/target/spotbugs*.xml
+            resource-server/target/spotbugs*.html
+            resource-server/target/site/spotbugs/**
           if-no-files-found: ignore
 
   frontend-lint:
@@ -102,3 +108,4 @@ jobs:
         with:
           name: frontend-eslint-report
           path: ag-prueba-front/eslint-report.txt
+          if-no-files-found: ignore

@@ -37,7 +37,7 @@ export class MenuComponent {
     const codeVerifier = this.generateCodeVerifier();
     this.tokenService.setVerifier(codeVerifier);
 
-    this.params.code_challenge = this.generateCodeChallenge(codeVerifier);
+    this.params['code_challenge'] = this.generateCodeChallenge(codeVerifier);
     const httpParams = new HttpParams({ fromObject: this.params });
     const codeUrl = this.authorize_uri + httpParams.toString();
     location.href = codeUrl;
