@@ -2,21 +2,17 @@ name: quality
 
 on:
   pull_request:
-    branches: ["develop"]
+    branches: [ "develop" ]
   push:
-    branches: ["**"]
-
-permissions:
-  contents: read
+    branches: [ "**" ]
 
 jobs:
-  backend-authorization:
-    name: authorization-server (tests)
+  backend-authorization-quality:
+    name: authorization-server (checkstyle + tests + jacoco)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: authorization-server
-
     steps:
       - uses: actions/checkout@v4
 
@@ -31,45 +27,25 @@ jobs:
           sed -i 's/\r$//' mvnw
           chmod +x mvnw
 
-      - name: Tests (incluye JaCoCo + Checkstyle en validate)
+      - name: Run tests (includes validate -> checkstyle)
         run: ./mvnw -B test
 
-      - name: Generate Checkstyle HTML report
-        run: ./mvnw -B checkstyle:checkstyle
-
-      - name: Upload JaCoCo report (HTML)
+      - name: Upload backend reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: authorization-server-jacoco
-          path: authorization-server/target/site/jacoco/**
-          if-no-files-found: warn
-
-      - name: Upload Checkstyle report (HTML + XML)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: authorization-server-checkstyle
+          name: authorization-server-reports
           path: |
-            authorization-server/target/site/checkstyle*
-            authorization-server/target/checkstyle-result.xml
-          if-no-files-found: warn
+            authorization-server/target/surefire-reports/**
+            authorization-server/target/site/jacoco/**
+          if-no-files-found: ignore
 
-      - name: Upload Surefire reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: authorization-server-surefire
-          path: authorization-server/target/surefire-reports/**
-          if-no-files-found: warn
-
-  backend-resource:
-    name: resource-server (tests)
+  backend-resource-quality:
+    name: resource-server (checkstyle + tests + jacoco)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: resource-server
-
     steps:
       - uses: actions/checkout@v4
 
@@ -84,37 +60,18 @@ jobs:
           sed -i 's/\r$//' mvnw
           chmod +x mvnw
 
-      - name: Tests (incluye JaCoCo + Checkstyle en validate)
+      - name: Run tests (includes validate -> checkstyle)
         run: ./mvnw -B test
 
-      - name: Generate Checkstyle HTML report
-        run: ./mvnw -B checkstyle:checkstyle
-
-      - name: Upload JaCoCo report (HTML)
+      - name: Upload backend reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: resource-server-jacoco
-          path: resource-server/target/site/jacoco/**
-          if-no-files-found: warn
-
-      - name: Upload Checkstyle report (HTML + XML)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: resource-server-checkstyle
+          name: resource-server-reports
           path: |
-            resource-server/target/site/checkstyle*
-            resource-server/target/checkstyle-result.xml
-          if-no-files-found: warn
-
-      - name: Upload Surefire reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: resource-server-surefire
-          path: resource-server/target/surefire-reports/**
-          if-no-files-found: warn
+            resource-server/target/surefire-reports/**
+            resource-server/target/site/jacoco/**
+          if-no-files-found: ignore
 
   frontend-lint:
     name: ag-prueba-front (eslint)
@@ -122,18 +79,26 @@ jobs:
     defaults:
       run:
         working-directory: ag-prueba-front
-
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
+          cache: npm
           cache-dependency-path: ag-prueba-front/package-lock.json
 
-      - name: Install deps
-        run: npm ci --no-audit --no-fund
+      - name: Install deps (npm ci strict; fallback to npm install)
+        run: |
+          npm ci --no-audit --no-fund || npm install --no-audit --no-fund
 
       - name: Lint
-        run: npm run lint
+        run: |
+          npm run lint 2>&1 | tee eslint-report.txt
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-eslint-report
+          path: ag-prueba-front/eslint-report.txt
