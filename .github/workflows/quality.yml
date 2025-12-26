@@ -15,10 +15,17 @@ jobs:
         working-directory: authorization-server
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           java-version: "17"
           distribution: "temurin"
+
+      - name: Prepare Maven Wrapper
+        run: |
+          sed -i 's/\r$//' mvnw
+          chmod +x mvnw
+
       - name: Checkstyle (validate)
         run: ./mvnw -DskipTests validate
 
@@ -30,10 +37,17 @@ jobs:
         working-directory: resource-server
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           java-version: "17"
           distribution: "temurin"
+
+      - name: Prepare Maven Wrapper
+        run: |
+          sed -i 's/\r$//' mvnw
+          chmod +x mvnw
+
       - name: Checkstyle (validate)
         run: ./mvnw -DskipTests validate
 
@@ -45,10 +59,13 @@ jobs:
         working-directory: ag-prueba-front
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+
       - name: Install deps
         run: npm ci
+
       - name: Lint
         run: npm run lint
