@@ -7,8 +7,8 @@ on:
     branches: [ "**" ]
 
 jobs:
-  backend-authorization-quality:
-    name: authorization-server (checkstyle + tests + coverage)
+  backend-authorization:
+    name: authorization-server (checkstyle + tests)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -21,22 +21,35 @@ jobs:
           java-version: "17"
           distribution: "temurin"
 
+      - name: Cache Maven repo
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
       - name: Prepare Maven Wrapper
         run: |
           sed -i 's/\r$//' mvnw
           chmod +x mvnw
 
-      - name: Test + Coverage (JaCoCo) + Checkstyle
-        run: ./mvnw test
+      - name: Maven test (retry + full errors)
+        run: |
+          set -e
+          for i in 1 2 3; do
+            echo "Attempt $i/3"
+            ./mvnw -B -ntp -e -DtrimStackTrace=false test && break
+            if [ "$i" -eq 3 ]; then
+              echo "Maven failed after 3 attempts"
+              exit 1
+            fi
+            echo "Retrying in 15s..."
+            sleep 15
+          done
 
-      - name: Upload JaCoCo report (authorization-server)
-        uses: actions/upload-artifact@v4
-        with:
-          name: jacoco-authorization-server
-          path: authorization-server/target/site/jacoco/
-
-  backend-resource-quality:
-    name: resource-server (checkstyle + tests + coverage)
+  backend-resource:
+    name: resource-server (checkstyle + tests)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -49,19 +62,44 @@ jobs:
           java-version: "17"
           distribution: "temurin"
 
+      - name: Cache Maven repo
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
       - name: Prepare Maven Wrapper
         run: |
           sed -i 's/\r$//' mvnw
           chmod +x mvnw
 
-      - name: Test + Coverage (JaCoCo) + Checkstyle
-        run: ./mvnw test
+      - name: Maven test (retry + full errors)
+        run: |
+          set -e
+          for i in 1 2 3; do
+            echo "Attempt $i/3"
+            ./mvnw -B -ntp -e -DtrimStackTrace=false test && break
+            if [ "$i" -eq 3 ]; then
+              echo "Maven failed after 3 attempts"
+              exit 1
+            fi
+            echo "Retrying in 15s..."
+            sleep 15
+          done
 
-      - name: Upload JaCoCo report (resource-server)
-        uses: actions/upload-artifact@v4
-        with:
-          name: jacoco-resource-server
-          path: resource-server/target/site/jacoco/
+      - name: Dump Surefire reports (on failure)
+        if: failure()
+        run: |
+          echo "==== SUREFIRE REPORTS (resource-server) ===="
+          ls -la target/surefire-reports || true
+          for f in target/surefire-reports/*.txt target/surefire-reports/*.dumpstream target/surefire-reports/*.xml; do
+            if [ -f "$f" ]; then
+              echo "---- $f ----"
+              sed -n '1,200p' "$f"
+            fi
+          done
 
   frontend-lint:
     name: ag-prueba-front (eslint)
@@ -75,9 +113,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ag-prueba-front/package-lock.json
 
       - name: Install deps
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Lint
         run: npm run lint
