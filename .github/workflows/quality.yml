@@ -2,9 +2,12 @@ name: quality
 
 on:
   pull_request:
-    branches: [ "develop" ]
+    branches: ["develop"]
   push:
-    branches: [ "**" ]
+    branches: ["**"]
+
+permissions:
+  contents: read
 
 jobs:
   backend-authorization:
@@ -13,6 +16,7 @@ jobs:
     defaults:
       run:
         working-directory: authorization-server
+
     steps:
       - uses: actions/checkout@v4
 
@@ -20,40 +24,52 @@ jobs:
         with:
           java-version: "17"
           distribution: "temurin"
-
-      - name: Cache Maven repo
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
+          cache: maven
 
       - name: Prepare Maven Wrapper
         run: |
           sed -i 's/\r$//' mvnw
           chmod +x mvnw
 
-      - name: Maven test (retry)
-        run: |
-          set -e
-          for i in 1 2 3; do
-            echo "Attempt $i/3"
-            ./mvnw -B -ntp test && break
-            if [ "$i" -eq 3 ]; then
-              echo "Maven failed after 3 attempts"
-              exit 1
-            fi
-            echo "Retrying in 15s..."
-            sleep 15
-          done
+      - name: Tests (incluye JaCoCo + Checkstyle en validate)
+        run: ./mvnw -B test
+
+      - name: Generate Checkstyle HTML report
+        run: ./mvnw -B checkstyle:checkstyle
+
+      - name: Upload JaCoCo report (HTML)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: authorization-server-jacoco
+          path: authorization-server/target/site/jacoco/**
+          if-no-files-found: warn
+
+      - name: Upload Checkstyle report (HTML + XML)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: authorization-server-checkstyle
+          path: |
+            authorization-server/target/site/checkstyle*
+            authorization-server/target/checkstyle-result.xml
+          if-no-files-found: warn
+
+      - name: Upload Surefire reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: authorization-server-surefire
+          path: authorization-server/target/surefire-reports/**
+          if-no-files-found: warn
 
   backend-resource:
-    name: resource-server (tests + show surefire error)
+    name: resource-server (tests)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: resource-server
+
     steps:
       - uses: actions/checkout@v4
 
@@ -61,52 +77,44 @@ jobs:
         with:
           java-version: "17"
           distribution: "temurin"
-
-      - name: Cache Maven repo
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
+          cache: maven
 
       - name: Prepare Maven Wrapper
         run: |
           sed -i 's/\r$//' mvnw
           chmod +x mvnw
 
-      - name: Maven test (retry + dump surefire on failure)
-        run: |
-          set +e
-          exit_code=1
+      - name: Tests (incluye JaCoCo + Checkstyle en validate)
+        run: ./mvnw -B test
 
-          for i in 1 2 3; do
-            echo "Attempt $i/3"
-            ./mvnw -B -ntp -e -DtrimStackTrace=false test
-            exit_code=$?
+      - name: Generate Checkstyle HTML report
+        run: ./mvnw -B checkstyle:checkstyle
 
-            if [ "$exit_code" -eq 0 ]; then
-              echo "Maven test OK"
-              exit 0
-            fi
+      - name: Upload JaCoCo report (HTML)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resource-server-jacoco
+          path: resource-server/target/site/jacoco/**
+          if-no-files-found: warn
 
-            echo "Attempt $i failed with exit code $exit_code"
-            if [ "$i" -lt 3 ]; then
-              echo "Retrying in 15s..."
-              sleep 15
-            fi
-          done
+      - name: Upload Checkstyle report (HTML + XML)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resource-server-checkstyle
+          path: |
+            resource-server/target/site/checkstyle*
+            resource-server/target/checkstyle-result.xml
+          if-no-files-found: warn
 
-          echo "==== SUREFIRE REPORTS (resource-server) ===="
-          ls -la target/surefire-reports || true
-          for f in target/surefire-reports/*.txt target/surefire-reports/*.dumpstream target/surefire-reports/*.xml; do
-            if [ -f "$f" ]; then
-              echo "---- $f ----"
-              sed -n '1,220p' "$f"
-            fi
-          done
-
-          exit $exit_code
+      - name: Upload Surefire reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resource-server-surefire
+          path: resource-server/target/surefire-reports/**
+          if-no-files-found: warn
 
   frontend-lint:
     name: ag-prueba-front (eslint)
@@ -114,6 +122,7 @@ jobs:
     defaults:
       run:
         working-directory: ag-prueba-front
+
     steps:
       - uses: actions/checkout@v4
 
@@ -123,9 +132,8 @@ jobs:
           cache: "npm"
           cache-dependency-path: ag-prueba-front/package-lock.json
 
-      - name: Install deps (ci if possible, fallback to install)
-        run: |
-          npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+      - name: Install deps
+        run: npm ci --no-audit --no-fund
 
       - name: Lint
         run: npm run lint
