@@ -1,0 +1,111 @@
+name: quality
+
+on:
+  pull_request:
+    branches: [ "develop" ]
+  push:
+    branches: [ "**" ]
+
+jobs:
+  backend-authorization-quality:
+    name: authorization-server (checkstyle + tests + jacoco + spotbugs)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: authorization-server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+          cache: maven
+
+      - name: Prepare Maven Wrapper
+        run: |
+          sed -i 's/\r$//' mvnw
+          chmod +x mvnw
+
+      - name: Run verify (validate->checkstyle, test, jacoco, spotbugs if configured)
+        run: ./mvnw -B verify
+
+      - name: Upload backend reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: authorization-server-reports
+          path: |
+            authorization-server/target/surefire-reports/**
+            authorization-server/target/site/jacoco/**
+            authorization-server/target/spotbugs*.xml
+            authorization-server/target/spotbugs*.html
+            authorization-server/target/site/spotbugs/**
+          if-no-files-found: ignore
+
+  backend-resource-quality:
+    name: resource-server (checkstyle + tests + jacoco + spotbugs)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: resource-server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+          cache: maven
+
+      - name: Prepare Maven Wrapper
+        run: |
+          sed -i 's/\r$//' mvnw
+          chmod +x mvnw
+
+      - name: Run verify (validate->checkstyle, test, jacoco, spotbugs if configured)
+        run: ./mvnw -B verify
+
+      - name: Upload backend reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resource-server-reports
+          path: |
+            resource-server/target/surefire-reports/**
+            resource-server/target/site/jacoco/**
+            resource-server/target/spotbugs*.xml
+            resource-server/target/spotbugs*.html
+            resource-server/target/site/spotbugs/**
+          if-no-files-found: ignore
+
+  frontend-lint:
+    name: ag-prueba-front (eslint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ag-prueba-front
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ag-prueba-front/package-lock.json
+
+      - name: Install deps (npm ci strict; fallback to npm install)
+        run: |
+          npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+      - name: Lint
+        run: |
+          npm run lint 2>&1 | tee eslint-report.txt
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-eslint-report
+          path: ag-prueba-front/eslint-report.txt
+          if-no-files-found: ignore
