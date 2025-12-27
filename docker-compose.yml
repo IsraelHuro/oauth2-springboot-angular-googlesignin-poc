@@ -16,6 +16,8 @@ services:
       - db-data:/var/lib/mysql
 
   authorization-server:
+    # Imagen versionada en GHCR (binario versionado)
+    image: ghcr.io/${GHCR_OWNER}/authorization-server:${TAG}
     build: ./authorization-server
     container_name: authorization-server
     depends_on:
@@ -28,6 +30,8 @@ services:
       - "9000:9000"
 
   resource-server:
+    # Imagen versionada en GHCR (binario versionado)
+    image: ghcr.io/${GHCR_OWNER}/resource-server:${TAG}
     build: ./resource-server
     container_name: resource-server
     depends_on:
@@ -42,6 +46,8 @@ services:
       - "8081:8081"
 
   frontend:
+    # Imagen versionada en GHCR (binario versionado)
+    image: ghcr.io/${GHCR_OWNER}/ag-prueba-front:${TAG}
     build: ./ag-prueba-front
     container_name: aghairsalon-front
     depends_on:
