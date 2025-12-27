@@ -5,6 +5,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:00"
     labels:
       - "dependencies"
       - "github-actions"
@@ -15,6 +17,8 @@ updates:
     directory: "/authorization-server"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:00"
     labels:
       - "dependencies"
       - "maven"
@@ -23,12 +27,18 @@ updates:
       maven-patches:
         patterns: ["*"]
         update-types: ["patch", "minor"]
+    # Si quieres evitar majors:
+    # ignore:
+    #   - dependency-name: "*"
+    #     update-types: ["version-update:semver-major"]
 
   # Maven - resource-server
   - package-ecosystem: "maven"
     directory: "/resource-server"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:00"
     labels:
       - "dependencies"
       - "maven"
@@ -37,17 +47,26 @@ updates:
       maven-patches:
         patterns: ["*"]
         update-types: ["patch", "minor"]
+    # ignore:
+    #   - dependency-name: "*"
+    #     update-types: ["version-update:semver-major"]
 
   # NPM - frontend
   - package-ecosystem: "npm"
     directory: "/ag-prueba-front"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:00"
     labels:
       - "dependencies"
       - "npm"
     open-pull-requests-limit: 5
+    versioning-strategy: "auto"
     groups:
       npm-patches:
         patterns: ["*"]
         update-types: ["patch", "minor"]
+    # ignore:
+    #   - dependency-name: "*"
+    #     update-types: ["version-update:semver-major"]
