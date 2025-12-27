@@ -6,10 +6,10 @@ services:
     container_name: aghairsalon-db
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: aghairsalon
-      MYSQL_USER: aghairsalon
-      MYSQL_PASSWORD: aghairsalon
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-aghairsalon}
+      MYSQL_USER: ${MYSQL_USER:-aghairsalon}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-aghairsalon}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
     ports:
       - "3306:3306"
     volumes:
@@ -22,9 +22,9 @@ services:
     depends_on:
       - db
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/aghairsalon
-      SPRING_DATASOURCE_USERNAME: aghairsalon
-      SPRING_DATASOURCE_PASSWORD: aghairsalon
+      SPRING_DATASOURCE_URL: ${AUTH_DB_URL:-jdbc:mysql://db:3306/aghairsalon}
+      SPRING_DATASOURCE_USERNAME: ${AUTH_DB_USER:-aghairsalon}
+      SPRING_DATASOURCE_PASSWORD: ${AUTH_DB_PASSWORD:-aghairsalon}
     ports:
       - "9000:9000"
 
@@ -36,10 +36,10 @@ services:
       - authorization-server
       - db
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/aghairsalon
-      SPRING_DATASOURCE_USERNAME: aghairsalon
-      SPRING_DATASOURCE_PASSWORD: aghairsalon
-      AUTH_SERVER_URL: http://authorization-server:9000
+      SPRING_DATASOURCE_URL: ${RES_DB_URL:-jdbc:mysql://db:3306/aghairsalon}
+      SPRING_DATASOURCE_USERNAME: ${RES_DB_USER:-aghairsalon}
+      SPRING_DATASOURCE_PASSWORD: ${RES_DB_PASSWORD:-aghairsalon}
+      AUTH_SERVER_URL: ${AUTH_SERVER_URL:-http://authorization-server:9000}
     ports:
       - "8081:8081"
 
@@ -52,7 +52,7 @@ services:
     ports:
       - "4200:80"
     environment:
-      API_URL: http://resource-server:8081
+      API_URL: ${API_URL:-http://resource-server:8081}
 
 volumes:
   db-data:
