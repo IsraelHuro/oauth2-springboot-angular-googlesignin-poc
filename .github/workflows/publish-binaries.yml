@@ -7,9 +7,14 @@ on:
         description: "Versión/tag a publicar (ej: poc-okr4 o v0.4.0)"
         required: true
         default: "poc-okr4"
+
+  # Para que SE EJECUTE al hacer push en tu rama (y así aparezca y tengas evidencia)
   push:
+    branches:
+      - "**"
     tags:
       - "v*"
+      - "poc-*"
 
 permissions:
   contents: read
@@ -26,63 +31,84 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set VERSION and OWNER (lowercase)
+      - name: Set VERSION, OWNER (lowercase) and PUBLISH flag
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            VERSION="${{ github.ref_name }}"
-          else
-            VERSION="${{ inputs.version }}"
-          fi
-
           OWNER="${{ github.repository_owner }}"
           OWNER_LC=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
+          echo "OWNER_LC=$OWNER_LC" >> $GITHUB_ENV
+
+          # VERSION:
+          # - si viene de tag push -> github.ref_name (el tag)
+          # - si es manual -> inputs.version
+          # - si es push de rama -> "ci-<run_number>-<sha>"
+          if [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${{ github.ref_name }}"
+            PUBLISH="true"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+            PUBLISH="true"
+          else
+            VERSION="ci-${{ github.run_number }}-${{ github.sha }}"
+            PUBLISH="false"
+          fi
 
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "OWNER_LC=$OWNER_LC" >> $GITHUB_ENV
+          echo "PUBLISH=$PUBLISH" >> $GITHUB_ENV
+
+          echo "AUTH_IMAGE=$REGISTRY/$OWNER_LC/authorization-server:$VERSION" >> $GITHUB_ENV
+          echo "RES_IMAGE=$REGISTRY/$OWNER_LC/resource-server:$VERSION" >> $GITHUB_ENV
+          echo "FRONT_IMAGE=$REGISTRY/$OWNER_LC/ag-prueba-front:$VERSION" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Login to GHCR
+        if: env.PUBLISH == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & Push authorization-server
-        run: |
-          docker build -t $REGISTRY/$OWNER_LC/authorization-server:$VERSION authorization-server
-          docker push $REGISTRY/$OWNER_LC/authorization-server:$VERSION
+      - name: Build authorization-server
+        run: docker build -t "$AUTH_IMAGE" authorization-server
 
-      - name: Build & Push resource-server
-        run: |
-          docker build -t $REGISTRY/$OWNER_LC/resource-server:$VERSION resource-server
-          docker push $REGISTRY/$OWNER_LC/resource-server:$VERSION
+      - name: Build resource-server
+        run: docker build -t "$RES_IMAGE" resource-server
 
-      - name: Build & Push ag-prueba-front
-        run: |
-          docker build -t $REGISTRY/$OWNER_LC/ag-prueba-front:$VERSION ag-prueba-front
-          docker push $REGISTRY/$OWNER_LC/ag-prueba-front:$VERSION
+      - name: Build ag-prueba-front
+        run: docker build -t "$FRONT_IMAGE" ag-prueba-front
 
-      # Evidencia extra (listado de imágenes)
+      - name: Push images (only on tag or manual)
+        if: env.PUBLISH == 'true'
+        run: |
+          docker push "$AUTH_IMAGE"
+          docker push "$RES_IMAGE"
+          docker push "$FRONT_IMAGE"
+
       - name: Generate evidence files
         if: always()
         run: |
-          echo "Published version: $VERSION" > published-images.txt
+          echo "Event: ${{ github.event_name }}" > published-images.txt
+          echo "Ref: ${{ github.ref }}" >> published-images.txt
+          echo "Publish to registry: $PUBLISH" >> published-images.txt
+          echo "Version: $VERSION" >> published-images.txt
           echo "Registry: $REGISTRY" >> published-images.txt
           echo "Owner: $OWNER_LC" >> published-images.txt
           echo "" >> published-images.txt
           echo "Images:" >> published-images.txt
-          echo "$REGISTRY/$OWNER_LC/authorization-server:$VERSION" >> published-images.txt
-          echo "$REGISTRY/$OWNER_LC/resource-server:$VERSION" >> published-images.txt
-          echo "$REGISTRY/$OWNER_LC/ag-prueba-front:$VERSION" >> published-images.txt
+          echo "$AUTH_IMAGE" >> published-images.txt
+          echo "$RES_IMAGE" >> published-images.txt
+          echo "$FRONT_IMAGE" >> published-images.txt
+
+          docker images > docker-images.txt
 
       - name: Upload evidence artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: binaries-versioned-evidence
+          name: binaries-evidence
           path: |
             published-images.txt
-          if-no-files-found: ignore
+            docker-images.txt
+          if-no-files-found: error
