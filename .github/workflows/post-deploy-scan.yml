@@ -8,77 +8,94 @@ on:
 
 jobs:
   deploy-and-scan:
-    name: Deploy (compose) + Trivy scan
+    name: Deploy (docker compose) + post-deploy scan
     runs-on: ubuntu-latest
+
+    env:
+      COMPOSE_PROJECT_NAME: aghairsalon-ci
+      COMPOSE_FILE: docker-compose.yml
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # (Opcional pero útil) Para que los nombres de imagen sean siempre iguales
-      - name: Define compose project name
-        run: echo "COMPOSE_PROJECT_NAME=aghairsalon" >> $GITHUB_ENV
+      - name: Show repo root files (debug)
+        run: ls -la
 
-      - name: Build images (compose)
-        run: docker compose -p $COMPOSE_PROJECT_NAME -f compose.yml build
+      - name: Build images (docker compose)
+        run: docker compose -p $COMPOSE_PROJECT_NAME -f $COMPOSE_FILE build
 
-      - name: Deploy stack (compose up)
-        run: docker compose -p $COMPOSE_PROJECT_NAME -f compose.yml up -d
+      - name: Deploy stack (docker compose up)
+        run: docker compose -p $COMPOSE_PROJECT_NAME -f $COMPOSE_FILE up -d
 
-      - name: Show running containers (evidence)
-        run: docker ps
+      - name: Wait a bit for containers
+        run: sleep 15
 
-      - name: Show built images (evidence)
-        run: docker images | head -n 50
+      - name: List running containers
+        run: docker ps -a
 
-      # Escaneo POST-DESPLIEGUE: escaneamos las imágenes ya desplegadas
-      # Nota: con -p aghairsalon, las imágenes suelen ser:
-      #   aghairsalon-authorization-server
-      #   aghairsalon-resource-server
-      #   aghairsalon-frontend
-      - name: Trivy scan - authorization-server
-        uses: aquasecurity/trivy-action@0.24.0
+      # Escaneo "tras despliegue": escaneamos las imágenes que acaban de construirse y desplegarse
+      - name: Trivy scan - authorization-server image
+        uses: aquasecurity/trivy-action@0.20.0
         with:
-          scan-type: "image"
-          image-ref: "aghairsalon-authorization-server:latest"
-          format: "table"
-          output: "trivy-authorization-server.txt"
-          severity: "HIGH,CRITICAL"
+          image-ref: ${{ env.COMPOSE_PROJECT_NAME }}-authorization-server
+          format: table
+          output: trivy-authorization-server.txt
           ignore-unfixed: true
-          exit-code: "0"
+          vuln-type: os,library
+          severity: CRITICAL,HIGH,MEDIUM
 
-      - name: Trivy scan - resource-server
-        uses: aquasecurity/trivy-action@0.24.0
+      - name: Trivy scan - resource-server image
+        uses: aquasecurity/trivy-action@0.20.0
         with:
-          scan-type: "image"
-          image-ref: "aghairsalon-resource-server:latest"
-          format: "table"
-          output: "trivy-resource-server.txt"
-          severity: "HIGH,CRITICAL"
+          image-ref: ${{ env.COMPOSE_PROJECT_NAME }}-resource-server
+          format: table
+          output: trivy-resource-server.txt
           ignore-unfixed: true
-          exit-code: "0"
+          vuln-type: os,library
+          severity: CRITICAL,HIGH,MEDIUM
 
-      - name: Trivy scan - frontend
-        uses: aquasecurity/trivy-action@0.24.0
+      - name: Trivy scan - frontend image
+        uses: aquasecurity/trivy-action@0.20.0
         with:
-          scan-type: "image"
-          image-ref: "aghairsalon-frontend:latest"
-          format: "table"
-          output: "trivy-frontend.txt"
-          severity: "HIGH,CRITICAL"
+          image-ref: ${{ env.COMPOSE_PROJECT_NAME }}-frontend
+          format: table
+          output: trivy-frontend.txt
           ignore-unfixed: true
-          exit-code: "0"
+          vuln-type: os,library
+          severity: CRITICAL,HIGH,MEDIUM
 
-      - name: Upload post-deploy scan reports
+      # (Opcional) Escaneo del contenedor de MySQL de Docker Hub
+      - name: Trivy scan - mysql base image (optional)
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: mysql:8
+          format: table
+          output: trivy-mysql.txt
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH,MEDIUM
+
+      - name: Collect docker compose logs
+        if: always()
+        run: |
+          docker compose -p $COMPOSE_PROJECT_NAME -f $COMPOSE_FILE ps -a > compose-ps.txt || true
+          docker compose -p $COMPOSE_PROJECT_NAME -f $COMPOSE_FILE logs --no-color > compose-logs.txt || true
+
+      - name: Upload scan + logs as artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: post-deploy-trivy-reports
+          name: post-deploy-security-scan-reports
           path: |
             trivy-authorization-server.txt
             trivy-resource-server.txt
             trivy-frontend.txt
+            trivy-mysql.txt
+            compose-ps.txt
+            compose-logs.txt
+          if-no-files-found: ignore
 
       - name: Shutdown stack
         if: always()
-        run: docker compose -p $COMPOSE_PROJECT_NAME -f compose.yml down
+        run: docker compose -p $COMPOSE_PROJECT_NAME -f $COMPOSE_FILE down -v
