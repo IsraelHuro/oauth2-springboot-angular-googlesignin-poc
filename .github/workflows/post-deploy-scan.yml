@@ -1,0 +1,84 @@
+name: post-deploy-security-scan
+
+on:
+  pull_request:
+    branches: ["develop"]
+  push:
+    branches: ["**"]
+
+jobs:
+  deploy-and-scan:
+    name: Deploy (compose) + Trivy scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # (Opcional pero útil) Para que los nombres de imagen sean siempre iguales
+      - name: Define compose project name
+        run: echo "COMPOSE_PROJECT_NAME=aghairsalon" >> $GITHUB_ENV
+
+      - name: Build images (compose)
+        run: docker compose -p $COMPOSE_PROJECT_NAME -f compose.yml build
+
+      - name: Deploy stack (compose up)
+        run: docker compose -p $COMPOSE_PROJECT_NAME -f compose.yml up -d
+
+      - name: Show running containers (evidence)
+        run: docker ps
+
+      - name: Show built images (evidence)
+        run: docker images | head -n 50
+
+      # Escaneo POST-DESPLIEGUE: escaneamos las imágenes ya desplegadas
+      # Nota: con -p aghairsalon, las imágenes suelen ser:
+      #   aghairsalon-authorization-server
+      #   aghairsalon-resource-server
+      #   aghairsalon-frontend
+      - name: Trivy scan - authorization-server
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: "image"
+          image-ref: "aghairsalon-authorization-server:latest"
+          format: "table"
+          output: "trivy-authorization-server.txt"
+          severity: "HIGH,CRITICAL"
+          ignore-unfixed: true
+          exit-code: "0"
+
+      - name: Trivy scan - resource-server
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: "image"
+          image-ref: "aghairsalon-resource-server:latest"
+          format: "table"
+          output: "trivy-resource-server.txt"
+          severity: "HIGH,CRITICAL"
+          ignore-unfixed: true
+          exit-code: "0"
+
+      - name: Trivy scan - frontend
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: "image"
+          image-ref: "aghairsalon-frontend:latest"
+          format: "table"
+          output: "trivy-frontend.txt"
+          severity: "HIGH,CRITICAL"
+          ignore-unfixed: true
+          exit-code: "0"
+
+      - name: Upload post-deploy scan reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-deploy-trivy-reports
+          path: |
+            trivy-authorization-server.txt
+            trivy-resource-server.txt
+            trivy-frontend.txt
+
+      - name: Shutdown stack
+        if: always()
+        run: docker compose -p $COMPOSE_PROJECT_NAME -f compose.yml down
