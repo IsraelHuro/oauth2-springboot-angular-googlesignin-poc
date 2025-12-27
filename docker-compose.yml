@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   db:
-    image: mysql:8
+    image: "${MYSQL_IMAGE:-mysql:8}"
     container_name: aghairsalon-db
     restart: unless-stopped
     environment:
@@ -16,6 +16,7 @@ services:
       - db-data:/var/lib/mysql
 
   authorization-server:
+    image: "${REGISTRY:-ghcr.io}/${GHCR_OWNER:-local}/authorization-server:${TAG:-local}"
     build: ./authorization-server
     container_name: authorization-server
     depends_on:
@@ -28,6 +29,7 @@ services:
       - "9000:9000"
 
   resource-server:
+    image: "${REGISTRY:-ghcr.io}/${GHCR_OWNER:-local}/resource-server:${TAG:-local}"
     build: ./resource-server
     container_name: resource-server
     depends_on:
@@ -42,6 +44,7 @@ services:
       - "8081:8081"
 
   frontend:
+    image: "${REGISTRY:-ghcr.io}/${GHCR_OWNER:-local}/ag-prueba-front:${TAG:-local}"
     build: ./ag-prueba-front
     container_name: aghairsalon-front
     depends_on:

@@ -1,0 +1,142 @@
+name: post-deploy-security-scan
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-and-scan:
+    name: Deploy (docker compose) + post-deploy scan (Trivy)
+    runs-on: ubuntu-latest
+
+    env:
+      COMPOSE_PROJECT_NAME: aghairsalon-ci
+      COMPOSE_FILE: docker-compose.yml
+      REGISTRY: ghcr.io
+
+      # Docker Hub creds (opcionales). NO los uses en if: directamente.
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Trivy: credenciales para descargar DB si hace falta
+      TRIVY_USERNAME: ${{ github.actor }}
+      TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare image tags (OWNER lowercase + TAG)
+        run: |
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          TAG="ci-${{ github.run_number }}-${{ github.sha }}"
+
+          echo "GHCR_OWNER=$OWNER_LC" >> "$GITHUB_ENV"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+          echo "AUTH_IMAGE=${{ env.REGISTRY }}/$OWNER_LC/authorization-server:$TAG" >> "$GITHUB_ENV"
+          echo "RES_IMAGE=${{ env.REGISTRY }}/$OWNER_LC/resource-server:$TAG" >> "$GITHUB_ENV"
+          echo "FRONT_IMAGE=${{ env.REGISTRY }}/$OWNER_LC/ag-prueba-front:$TAG" >> "$GITHUB_ENV"
+
+      - name: Docker Hub login (optional, avoids rate limit)
+        run: |
+          if [ -n "$DOCKERHUB_USERNAME" ] && [ -n "$DOCKERHUB_TOKEN" ]; then
+            echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+            echo "Docker Hub login: OK"
+          else
+            echo "Docker Hub login: SKIPPED (no secrets configured)"
+          fi
+
+      - name: Docker compose config (resolved) - evidence
+        run: |
+          docker compose -p "$COMPOSE_PROJECT_NAME" -f "$COMPOSE_FILE" config > compose-resolved.yml
+
+      - name: Build images (docker compose)
+        run: |
+          docker compose -p "$COMPOSE_PROJECT_NAME" -f "$COMPOSE_FILE" build
+
+      - name: List built images + refs (evidence)
+        run: |
+          docker images > docker-images.txt
+          {
+            echo "AUTH_IMAGE=$AUTH_IMAGE"
+            echo "RES_IMAGE=$RES_IMAGE"
+            echo "FRONT_IMAGE=$FRONT_IMAGE"
+          } | tee image-refs.txt
+
+      - name: Deploy stack (docker compose up)
+        run: |
+          docker compose -p "$COMPOSE_PROJECT_NAME" -f "$COMPOSE_FILE" up -d
+
+      - name: Wait for containers
+        run: sleep 15
+
+      - name: List running containers (evidence)
+        run: docker ps -a > docker-ps.txt
+
+      # --- POST-DEPLOY SCANS: escanear EXACTAMENTE las imágenes construidas ---
+      - name: Trivy scan - authorization-server image
+        uses: aquasecurity/trivy-action@0.31.0
+        with:
+          image-ref: ${{ env.AUTH_IMAGE }}
+          format: table
+          output: trivy-authorization-server.txt
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH,MEDIUM
+          exit-code: "0"
+
+      - name: Trivy scan - resource-server image
+        uses: aquasecurity/trivy-action@0.31.0
+        with:
+          image-ref: ${{ env.RES_IMAGE }}
+          format: table
+          output: trivy-resource-server.txt
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH,MEDIUM
+          exit-code: "0"
+
+      - name: Trivy scan - frontend image
+        uses: aquasecurity/trivy-action@0.31.0
+        with:
+          image-ref: ${{ env.FRONT_IMAGE }}
+          format: table
+          output: trivy-frontend.txt
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH,MEDIUM
+          exit-code: "0"
+
+      - name: Collect docker compose logs (evidence)
+        if: always()
+        run: |
+          docker compose -p "$COMPOSE_PROJECT_NAME" -f "$COMPOSE_FILE" ps -a > compose-ps.txt || true
+          docker compose -p "$COMPOSE_PROJECT_NAME" -f "$COMPOSE_FILE" logs --no-color > compose-logs.txt || true
+
+      - name: Upload scan + evidence as artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-deploy-security-scan-reports
+          path: |
+            trivy-authorization-server.txt
+            trivy-resource-server.txt
+            trivy-frontend.txt
+            compose-resolved.yml
+            docker-images.txt
+            image-refs.txt
+            docker-ps.txt
+            compose-ps.txt
+            compose-logs.txt
+          if-no-files-found: error
+
+      - name: Shutdown stack
+        if: always()
+        run: docker compose -p "$COMPOSE_PROJECT_NAME" -f "$COMPOSE_FILE" down -v

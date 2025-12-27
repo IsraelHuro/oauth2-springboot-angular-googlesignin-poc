@@ -1,0 +1,76 @@
+name: sbom-control
+
+on:
+  pull_request:
+    branches: ["develop"]
+  push:
+    branches: ["**"]
+
+permissions:
+  contents: read
+
+jobs:
+  sbom-control:
+    name: SBOM (generate + diff baseline)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare output folder
+        run: mkdir -p sbom
+
+      - name: Generate SBOM authorization-server
+        uses: anchore/sbom-action@v0
+        with:
+          path: authorization-server
+          format: spdx-json
+          output-file: sbom/authorization-server.spdx.json
+
+      - name: Generate SBOM resource-server
+        uses: anchore/sbom-action@v0
+        with:
+          path: resource-server
+          format: spdx-json
+          output-file: sbom/resource-server.spdx.json
+
+      - name: Generate SBOM ag-prueba-front
+        uses: anchore/sbom-action@v0
+        with:
+          path: ag-prueba-front
+          format: spdx-json
+          output-file: sbom/ag-prueba-front.spdx.json
+
+      - name: Compare SBOMs vs baseline (warning if changed)
+        shell: bash
+        run: |
+          set +e
+          for f in authorization-server resource-server ag-prueba-front; do
+            BASE=".sbom/baseline/${f}.spdx.json"
+            GEN="sbom/${f}.spdx.json"
+
+            if [ ! -s "$BASE" ]; then
+              echo "::warning::Baseline vacío o no existe: $BASE. Descarga el artifact y reemplázalo para activar el control real."
+              continue
+            fi
+
+            diff -u "$BASE" "$GEN" > "sbom/diff-${f}.patch"
+            if [ $? -ne 0 ]; then
+              echo "::warning::SBOM cambiado para $f"
+              echo "### ⚠️ SBOM changed: $f" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`diff" >> $GITHUB_STEP_SUMMARY
+              head -n 200 "sbom/diff-${f}.patch" >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            else
+              rm -f "sbom/diff-${f}.patch"
+            fi
+          done
+
+      - name: Upload SBOMs + diffs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-and-diffs
+          path: sbom/**
+          if-no-files-found: warn
