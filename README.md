@@ -101,3 +101,6 @@ Este proyecto de prueba demuestra la implementación de autenticación y autoriz
 5. Una vez autenticado, serás redirigido a la aplicación con acceso basado en los permisos otorgados y verás en el menú una opción nueva.
 
 La base de datos deberás de rellenarla. Hay endpoints para crear usuarios pero se puede rellenar manualmente. Los usuarios con el rol de "administrador" (ROLE_ADMIN) tendrán una opción más en el menú.
+
+
+[![quality](https://github.com/IsraelHuro/oauth2-springboot-angular-googlesignin-poc/actions/workflows/quality.yml/badge.svg)](https://github.com/IsraelHuro/oauth2-springboot-angular-googlesignin-poc/actions/workflows/quality.yml)
