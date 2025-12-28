@@ -1,0 +1,41 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files: []
+
+scrape_configs:
+  # Prometheus se scrapea a sí mismo
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["prometheus:9090"]
+
+  # Spring Boot - Authorization Server (Actuator Prometheus)
+  - job_name: "authorization-server"
+    metrics_path: "/actuator/prometheus"
+    static_configs:
+      - targets: ["authorization-server:9000"]
+
+  # Spring Boot - Resource Server (Actuator Prometheus)
+  - job_name: "resource-server"
+    metrics_path: "/actuator/prometheus"
+    static_configs:
+      - targets: ["resource-server:8081"]
+
+  # Blackbox exporter (para comprobar URLs y medir tiempos desde fuera)
+  - job_name: "blackbox-http"
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://authorization-server:9000/actuator/health
+          - http://resource-server:8081/actuator/health
+          - http://frontend/
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
